@@ -180,7 +180,7 @@ public class WebUtils {
 		String header[];
 		for (i = 0; i < buffer.length; i++) {
 
-			// System.out.println(buffer[i]);
+//			 System.out.println(buffer[i]);
 
 			// Headers end with a unique line break
 			if (buffer[i].equals("\n")) {
@@ -199,7 +199,11 @@ public class WebUtils {
 					response.setStatus(Integer.parseInt(header[1].trim()));
 				} else {
 					// Set header
-					response.addHeader(header[0], header[1]);
+					//Ignore X-ORACLE-IGNORE response header
+					if (! header[0].equals("X-ORACLE-IGNORE") &&  ! header[0].equals("X-DB-Content-length") )
+					{
+						response.addHeader(header[0], header[1]);
+					}					
 				}
 			} else {
 				// La cabecera esta contenida en mas de un elmento del array
@@ -213,7 +217,11 @@ public class WebUtils {
 					complexHeader += buffer[i];
 				} while (!lastChar.equals("\n"));
 
-				response.addHeader(header[0], complexHeader);
+				//Ignore X-ORACLE-IGNORE response header				
+				if (! header[0].equals("X-ORACLE-IGNORE") &&  ! header[0].equals("X-DB-Content-length") )
+				{
+					response.addHeader(header[0], complexHeader);
+				}
 			}
 		}
 		
