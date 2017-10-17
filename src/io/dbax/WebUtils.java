@@ -5,18 +5,24 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.BufferedReader;
-import java.util.Arrays;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * @author Magallanes
  *
  */
-public class WebUtils {
+public final class WebUtils {
 
+	// Private constructor
+	private WebUtils (){}
+	
 	/**
 	 * Establece el parametro de entrada con las variables CGI al procedimiento de Oracle
 	 * 
@@ -24,26 +30,40 @@ public class WebUtils {
 	 * @return
 	 */
 	@SuppressWarnings("rawtypes")
-	public static String getOracleCGIEnv(Map<String, String> mp) {
+	public static String getOracleCGIEnv(Map<String, String> mp, Map<String, String> binds) {
 		String cgi_env = "";
 		int k = 1;
 
+		Random rand = new Random();
+		
 		Iterator it = mp.entrySet().iterator();
+		
 		while (it.hasNext()) {
 			Map.Entry pair = (Map.Entry) it.next();
-			// System.out.println(pair.getKey() + " = " + pair.getValue());
-
-			cgi_env += "l_cgi_names(" + k + ") := '" + pair.getKey() + "';";
-
-			if (pair.getValue() == null || pair.getValue().equals("null"))
+			int randN = (rand.nextInt((9999 - 1) + 1) + 1);
+			String name = 		(String) pair.getKey();
+			String nname = "n"+ randN + name.replaceAll("-", "_");
+			String vname = "v" +randN+ name.replaceAll("-", "_");
+			String value = 		(String) pair.getValue();
+			
+			cgi_env += "l_cgi_names(" + k + ") := :" + nname + ";\n";
+			//bind variable name
+			binds.put(nname ,name);
+			//bind variable value
+			binds.put(vname,value);
+			
+			/*if (pair.getValue() == null || pair.getValue().equals("null"))
 				cgi_env += "l_cgi_values(" + k + ") := '';";
-			else
-				cgi_env += "l_cgi_values(" + k + ") := '" + pair.getValue() + "';";
+			else*/
+				
+			cgi_env += "l_cgi_values(" + k + ") := :" + vname + ";\n";
 
 			it.remove(); // avoids a ConcurrentModificationException
 			k++;
+			
 		}
-
+		
+		
 		return cgi_env;
 
 	}
@@ -56,7 +76,7 @@ public class WebUtils {
 	 * @param request
 	 * @return
 	 */
-	@SuppressWarnings("rawtypes")
+	/*@SuppressWarnings("rawtypes")
 	public static String getOracleInputParams(HttpServletRequest request) {
 		String inputParams = "";
 		int k = 1;
@@ -77,7 +97,9 @@ public class WebUtils {
 			while ((line = reader.readLine()) != null)
 				sb.append(line);
 		} catch (Exception e) {
-			/* report an error */ }
+			// report an error 
+			  }
+			 
 		
 		if (sb != null){
 			inputParams += "l_param_names(" + k + ") := 'data';";
@@ -85,7 +107,7 @@ public class WebUtils {
 		}
 		
 		return inputParams;
-	}
+	}*/
 	
 	
 	/**
@@ -95,18 +117,19 @@ public class WebUtils {
 	 * @param servletContext
 	 * @return
 	 */
-	public static Map<String, String> getHeadersInfo(HttpServletRequest request, ServletContext servletContext) {
+	public static HashMap<String, String> getHeadersInfo(HttpServletRequest request, ServletContext servletContext, String dadName) {
 
-		Map<String, String> map = new HashMap<String, String>();
+		HashMap<String, String> map = new HashMap<String, String>();
 
-		@SuppressWarnings("rawtypes")
+		//All Headers 
+		@SuppressWarnings("rawtypes")		
 		Enumeration headerNames = request.getHeaderNames();
 		while (headerNames.hasMoreElements()) {
 			String key = (String) headerNames.nextElement();
 			String value = request.getHeader(key);
 			map.put(key, value);
 		}
-
+		
 		map.put("SERVER_SOFTWARE", servletContext.getServerInfo());
 
 		if (request.isSecure())
@@ -134,8 +157,8 @@ public class WebUtils {
 
 		// Specific Oracle CGI ENV
 		map.put("HTTP_CONTENT_TYPE", request.getContentType());
-		//map.put("APEX_LISTENER_VERSION", "2.0.8.163.10.40"); ??
-		map.put("DAD_NAME", "dbax");
+		map.put("APEX_LISTENER_VERSION", "2.0.8.163.10.40");		
+		map.put("DAD_NAME", dadName);
 		map.put("DOC_ACCESS_PATH", "");
 		map.put("DOCUMENT_TABLE", "");
 		map.put("GATEWAY_IVERSION", "3"); 
@@ -154,7 +177,8 @@ public class WebUtils {
 		map.put("HTTP_USER_AGENT", request.getHeader("user-agent"));
 		map.put("PATH_ALIAS", "");
 		map.put("PLSQL_GATEWAY", "WebDb");
-		map.put("REMOTE_ADDR", "0:0:0:0:0:0:0:1");
+		//map.put("REMOTE_ADDR", "0:0:0:0:0:0:0:1");
+		
 
 		map.put("REQUEST_CHARSET", "AL32UTF8");
 		map.put("REQUEST_IANA_CHARSET", "UTF-8");
@@ -169,66 +193,77 @@ public class WebUtils {
 	}
 
 	/**
-	 * Genrate Response Headers and return the String Buffer without headers, only response body
+	 * Set Response Headers
 	 *  
-	 * @param buffer
+	 * @param headerStr
 	 * @param response
-	 * @return newBuffer
 	 */
-	public static String[] setResponseHeaders(String[] buffer, HttpServletResponse response) {
+	public static void setResponseHeaders(String headerStr, HttpServletResponse response) {
 		int i = 0;
-		String header[];
-		for (i = 0; i < buffer.length; i++) {
-
-//			 System.out.println(buffer[i]);
-
+		String headers[];
+		String header[];		
+		headers = headerStr.split("(?<=\n)");
+		
+		for (i = 0; i < headers.length; i++) {
 			// Headers end with a unique line break
-			if (buffer[i].equals("\n")) {
+			if (headers[i].equals("\n")) {
 				i++;
 				break;
 			}
 
 			// Response heders
-			header = buffer[i].split(":", 2);
+			header = headers[i].split(":", 2);
 			
-			//Si la cabecera tiene un salto de linea en su ultima linea 
-			if (header[1].substring(header[1].length() - 1).equals("\n")) {
-				// Cabecera limpia
-				// Status code
-				if (header[0].equals("Status")) {
-					response.setStatus(Integer.parseInt(header[1].trim()));
-				} else {
-					// Set header
-					//Ignore X-ORACLE-IGNORE response header
-					if (! header[0].equals("X-ORACLE-IGNORE") &&  ! header[0].equals("X-DB-Content-length") )
-					{
-						response.addHeader(header[0], header[1]);
-					}					
-				}
+			if (header[0].equals("Status")) {
+				response.setStatus(Integer.parseInt(header[1].trim()));
 			} else {
-				// La cabecera esta contenida en mas de un elmento del array
-				// cabecera en 2 pasos
-				String complexHeader = header[1];
-				String lastChar;
-
-				do {
-					i++;
-					lastChar = buffer[i].substring(buffer[i].length() - 1);
-					complexHeader += buffer[i];
-				} while (!lastChar.equals("\n"));
-
-				//Ignore X-ORACLE-IGNORE response header				
+				// Set header
+				//Ignore X-ORACLE-IGNORE response header
 				if (! header[0].equals("X-ORACLE-IGNORE") &&  ! header[0].equals("X-DB-Content-length") )
 				{
-					response.addHeader(header[0], complexHeader);
+					response.addHeader(header[0], header[1]);
 				}
+				
+				if (header[0].equals("Location") &&  response.getStatus() == HttpServletResponse.SC_OK)
+					response.setStatus(HttpServletResponse.SC_FOUND);
 			}
 		}
-		
-		//Return new String Buffer without headers
-		String[] newBuffer = Arrays.copyOfRange(buffer, i, buffer.length);
-		return newBuffer;
+	}
+	
 
+	
+	public static String getBody(HttpServletRequest request) throws IOException {
+
+	    String body = null;
+	    StringBuilder stringBuilder = new StringBuilder();
+	    BufferedReader bufferedReader = null;
+
+	    try {
+	        InputStream inputStream = request.getInputStream();
+	        if (inputStream != null) {
+	            bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+	            char[] charBuffer = new char[128];
+	            int bytesRead = -1;
+	            while ((bytesRead = bufferedReader.read(charBuffer)) > 0) {
+	                stringBuilder.append(charBuffer, 0, bytesRead);
+	            }
+	        } else {
+	            stringBuilder.append("");
+	        }
+	    } catch (IOException ex) {
+	        throw ex;
+	    } finally {
+	        if (bufferedReader != null) {
+	            try {
+	                bufferedReader.close();
+	            } catch (IOException ex) {
+	                throw ex;
+	            }
+	        }
+	    }
+
+	    body = stringBuilder.toString();
+	    return body;
 	}
 
 }

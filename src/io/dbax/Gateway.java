@@ -1,105 +1,84 @@
 package io.dbax;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.sql.Array;
-import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.log4j.Logger;
 
+import io.dbax.conf.ApexDynamicParameters;
 import io.dbax.conf.DadConfiguration;
 import io.dbax.conf.DbaxConfiguration;
 import io.dbax.db.DBConnection;
 
-/**
- * Servlet implementation class Gateway
- */
-public class Gateway extends HttpServlet {
-	private static final long serialVersionUID = 1L;
+public class Gateway {
 
-	final static Logger log = Logger.getLogger(HttpServlet.class);
+	final static Logger log = Logger.getLogger(Gateway.class);
 
-	private DBConnection dbCon;
-	private DbaxConfiguration dc;
-	private String errorStyle = "DebugStyle";	
+	// Oracle Apex procedures for especial Parameter mapping	
+	HashMap<String, String> apexInputParams = new HashMap<String, String>();
+	Boolean apexCall = false;
 	
-	/**
-	 * @see HttpServlet#HttpServlet()
-	 */
-	public Gateway() {
+	//
+	Connection conn;
+	String dadName;
+	DadConfiguration dadC;
+	String[] requestPath;
+	String cgiEnv;
+	String dbProcedure;
+	LinkedHashMap<String, String> inputParams = new LinkedHashMap<String, String>();
+	Boolean multipart = false;
+	Boolean flexibleParameters = false;
+	HashMap<String, String> bindVars = new HashMap<String, String>();
+	HashMap<String, String> headers = new HashMap<String, String>();
+
+	public Gateway(HttpServletRequest request, DBConnection dbCon, DbaxConfiguration dc, ServletContext servletContext)
+			throws SQLException {
 		super();
-		// TODO Auto-generated constructor stub
-	}
 
-	public void init() throws ServletException {
-		try {
-			// Load copnfiguration
-			this.dc = new DbaxConfiguration(DbaxConfiguration.loadConfiguration());
-			// Start Database connection Pool
-			this.dbCon = new DBConnection(this.dc);
+		this.requestPath = request.getServletPath().split("/");
+
+		if (requestPath.length >= 1) {
+			this.dadName = requestPath[1];
+			this.dadC = dc.getDad(dadName);
+			this.conn = dbCon.getDataSource(dadName).getConnection();
+			this.cgiEnv = WebUtils.getOracleCGIEnv(WebUtils.getHeadersInfo(request, servletContext, this.dadName), this.bindVars);
+			this.multipart = ServletFileUpload.isMultipartContent(request);
+			this.headers = WebUtils.getHeadersInfo(request, servletContext, this.dadName);
 			
+			uploadFiles(request);
+			setDbProcedure();
+			setInputParams(request);
 
-		} catch (ConfigurationException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} else {
+			throw new NoSuchElementException("No procedure specified to run");
 		}
+
 	}
 
-	public void destroy() {
-		try {
-			this.dbCon.closeAllConnections();
-		} catch (SQLException e) {
-			log.error(e);
-		}
-	}
-	
-	/**
-	 * @see HttpServlet#service(HttpServletRequest request, HttpServletResponse
-	 *      response)
-	 */
-	protected void service(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
-
-		Connection conn;
-		String dadName;
-		DadConfiguration dadC;
-		
-        // Part list (multi files).
-		boolean isMultipart = ServletFileUpload.isMultipartContent(request);
-		if (isMultipart) {
+	private void uploadFiles(HttpServletRequest request) {
+		// Only if the request is multipart
+		if (this.multipart) {
 			try {
-
-				String requestPath = request.getServletPath().toString();
-				// Empty request path
-				if (requestPath.length() > 1) {
-					log.debug("Connect -  to the databae");
-					dadName = requestPath.split("/")[1];
-					log.debug("DAD Name from URL: " + dadName);
-					dadC = this.dc.getDad(dadName);
-					conn = this.dbCon.getDataSource(dadName).getConnection();
-				} else {
-					response.setStatus(404);
-					return;
-				}
-
 				// Create a factory for disk-based file items
 				DiskFileItemFactory factory = new DiskFileItemFactory();
 
@@ -112,49 +91,55 @@ public class Gateway extends HttpServlet {
 
 				// Set overall request size constraint
 				int docMaxUploadSize = Integer.parseInt(dadC.getDocumentMaxUploadSize());
-				if ( docMaxUploadSize > 0 ) upload.setSizeMax(docMaxUploadSize); 
+				if (docMaxUploadSize > 0)
+					upload.setSizeMax(docMaxUploadSize);
 
 				// Parse the request
-
 				List<FileItem> items = upload.parseRequest(request);
 				// Process the uploaded items
 				Iterator<FileItem> iter = items.iterator();
 				while (iter.hasNext()) {
 					FileItem item = iter.next();
 					if (item.isFormField()) {
-						String name = item.getFieldName();
+						String key = item.getFieldName();
 						String value = item.getString();
-						log.debug("name:value = " + name + ":" + value);
+						// Los campos del formulario se pasan como parametros de
+						// input
+						setInputParam(key, value);
 					} else {
-						
-						Random rand = new Random();						
-						
+
+						Random rand = new Random();
+
 						String fieldName = item.getFieldName();
-						String fileName = (rand.nextInt((999999999 - 1) + 1) +1 ) + "/" + item.getName();
+						String fileName = (rand.nextInt((999999999 - 1) + 1) + 1) + "/" + item.getName();
 						String contentType = item.getContentType();
 						boolean isInMemory = item.isInMemory();
 						long sizeInBytes = item.getSize();
 						InputStream uploadedStream = item.getInputStream();
 
-						log.debug("fieldName:" + fieldName);
-						log.debug("fileName:" + fileName);
-						log.debug("contentType:" + contentType);
-						log.debug("isInMemory:" + isInMemory);
-						log.debug("sizeInBytes:" + sizeInBytes);
-						log.debug("uploadedStream:" + uploadedStream);
-						
+						log.trace("fieldName:" + fieldName);
+						log.trace("fileName:" + fileName);
+						// El nombre del fichero se pasa como paramertro del
+						// input
+						setInputParam(/* key */ fieldName, /* value */ fileName);
+
+						log.trace("contentType:" + contentType);
+						log.trace("isInMemory:" + isInMemory);
+						log.trace("sizeInBytes:" + sizeInBytes);
+						log.trace("uploadedStream:" + uploadedStream);
+
 						// Insert the upload inputStream to wdx_table
 						String sqlInsert = "insert into " + dadC.getDocumentTableName()
 								+ " ( name , mime_type, doc_size, blob_content, last_updated )"
 								+ " values (?, ?, ?, ?, sysdate)";
 
 						PreparedStatement statement = conn.prepareStatement(sqlInsert);
-						//statement.setString(1, dadName); /*appid*/
+						// statement.setString(1, dadName); /*appid*/
 						statement.setString(1, fileName);
 						statement.setString(2, contentType);
 						statement.setFloat(3, sizeInBytes);
-						//statement.setString(5, "ascii"); /*dad_charset*/
-						//statement.setString(6, "BLOB"); /*content_type*/
+						// statement.setString(5, "ascii"); /*dad_charset*/
+						// statement.setString(6, "BLOB"); /*content_type*/
 						statement.setBlob(4, uploadedStream);
 
 						int row = statement.executeUpdate();
@@ -166,186 +151,383 @@ public class Gateway extends HttpServlet {
 					}
 				}
 
-				return;
-
-			} catch (FileUploadException | SQLException e) {
+			} catch (FileUploadException e) {
+				e.printStackTrace();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				// Auto-generated catch block
 				e.printStackTrace();
 			}
-
 		}
-		
-		
-		
-		
-		PrintWriter out = response.getWriter();
+	}
 
-		// Load the driver
-		try {
-			String requestPath = request.getServletPath().toString();
-			// Empty request path
-			if (requestPath.length() > 1) {
+	/**
+	 * @return the conn
+	 */
+	public Connection getConn() {
+		return conn;
+	}
 
-				log.debug("Connect -  to the databae");
-				// Connect to the database
+	/**
+	 * @param conn
+	 *            the conn to set
+	 */
+	public void setConn(Connection conn) {
+		this.conn = conn;
+	}
 
-				// protocol://hostname[:port]/DAD_location/[[!][schema.][package.]proc_name[?query_string]]
-				// to
-				// protocol://hostname[:port]/dadName/appId[?query_string]appId is the dbProcedure
+	/**
+	 * @return the dadName
+	 */
+	public String getDadName() {
+		return dadName;
+	}
 
-				dadName = requestPath.split("/")[1];
-				log.debug("DAD Name from URL: " + dadName);
+	/**
+	 * @param dadName
+	 *            the dadName to set
+	 */
+	public void setDadName(String dadName) {
+		this.dadName = dadName;
+	}
 
-				dadC = this.dc.getDad(dadName);				
-				
-				conn = this.dbCon.getDataSource(dadName).getConnection();
-				log.debug("Connect - Connected");
+	/**
+	 * @return the dadC
+	 */
+	public DadConfiguration getDadC() {
+		return dadC;
+	}
 
-				log.debug("CGI - Environment");
-				// CGI Environment
-				String cgi_env = WebUtils.getOracleCGIEnv(WebUtils.getHeadersInfo(request, getServletContext()));
-				
-				log.debug("CGI - Seted");
-				if (log.isTraceEnabled())
-					log.trace("CGI_ENV: " + cgi_env);
+	/**
+	 * @param dadC
+	 *            the dadC to set
+	 */
+	public void setDadC(DadConfiguration dadC) {
+		this.dadC = dadC;
+	}
 
-				// The url does not contain the bd procedure to call
-				String dbProcedure = null;
-				if (requestPath.split("/").length <= 2) {
-					
-					if (dadC.getDefaultPage() == null){
-						throw new NoSuchElementException(
-								"Unable to get DB procedure from URL. http://hostname[:port]/dadName/[[!][schema.][package.]proc_name] or http://hostname[:port]/dadName/[!]appId");
-					} else {
-						//dbProcedure = dadC.getDefaultPage();
-						response.sendRedirect(request.getRequestURI() + "/"+ dadC.getDefaultPage());
-						log.debug("Redirect to default page: " + dadC.getDefaultPage());
-						return;
-					}
-				} else {
-					dbProcedure = requestPath.split("/")[2];
-				}
-				
-				if (dbProcedure.substring(0, 1).equals("!"))
-					dbProcedure = dbProcedure.substring(1);
+	/**
+	 * @return the requestPath
+	 */
+	public String[] getRequestPath() {
+		return requestPath;
+	}
 
-				log.debug("dbProcedure: " + dbProcedure);
+	/**
+	 * @param requestPath
+	 *            the requestPath to set
+	 */
+	public void setRequestPath(String[] requestPath) {
+		this.requestPath = requestPath;
+	}
 
-				log.debug("Inputs - get");
-				String dbInputs = WebUtils.getOracleInputParams(request);
-				log.debug("Inputs - getted");
-				
-				String prepareCall = 
-						"DECLARE"
-						+ "   l_cgi_names      owa.vc_arr;"
-						+ "   l_cgi_values     owa.vc_arr;"
-						+ "	  l_param_names	   owa_util.vc_arr;"
-						+ "	  l_param_values   owa_util.vc_arr;"
-						+ "   l_htbuf          sys.htp.htbuf_arr;"
-						+ "   l_rows           INTEGER := 9999999999;"
-						+ "   l_return_buff    dbax_htbuf_arr;"
-						+ "   l_rc			   PLS_INTEGER;"
-						+ "BEGIN"
-						+ "   sys.htp.init;"
-						+ "   sys.htp.htbuf_len := 63;"
-						+ cgi_env
-						+ " "
-						+ "   sys.owa.init_cgi_env (num_params => l_cgi_names.count, param_name => l_cgi_names, param_val => l_cgi_values);"
-						+ "   l_cgi_names.delete;"
-						+ "   l_cgi_values.delete;"
-						+ " "
-						+ dbInputs
-						+ " "
-						+ "   "+dbProcedure+" (l_param_names, l_param_values);"
-						+ " "
-						+ "   IF (wpg_docload.is_file_download) THEN"
-						+ "       l_rc := '1';"
-						+ "	      /*wpg_docload.get_download_file (:doc_info);*/"
-						+ "		  COMMIT;"
-						+ "   ELSE"
-						+ "       l_rc := '0';"
-						+ "	      owa.get_page (l_htbuf, l_rows);"
-						+ "		  COMMIT;"
-						+ " "
-						+ "	      l_return_buff := dbax_htbuf_arr ();"
-						+ "	      FOR x IN 1 .. l_htbuf.count"
-						+ "       LOOP"
-						+ "    		l_return_buff.extend (1);"
-						+ "    		l_return_buff (x) := l_htbuf (x);"
-						+ "	      END LOOP;"
-						+ "   END IF;"
-						+ " "
-						+ "   sys.dbms_session.modify_package_state (sys.dbms_session.reinitialize);"
-						+ " "
-						+ "   :rc_ := l_rc;"
-						+ "   :data_ := l_return_buff;"
-						+ "END;";
+	/**
+	 * @return the cgiEnv
+	 */
+	public String getCgiEnv() {
+		return cgiEnv;
+	}
 
-				if (log.isTraceEnabled())
-					log.trace("Procedure Call: " + prepareCall);
+	/**
+	 * @param cgiEnv
+	 *            the cgiEnv to set
+	 */
+	public void setCgiEnv(String cgiEnv) {
+		this.cgiEnv = cgiEnv;
+	}
 
-				// Prepare call
-				log.debug("prepareCall - ");
-				CallableStatement cstmt;
-				cstmt = conn.prepareCall(prepareCall);
-				log.debug("prepareCall -  Prepared");
+	/**
+	 * @return the dbProcedure
+	 */
+	public String getDbProcedure() {
+		return dbProcedure;
+	}
 
-				// Register out params
-				log.debug("rc_ ");
-				cstmt.registerOutParameter("rc_", oracle.jdbc.OracleTypes.NUMBER);
-				log.debug("data_ ");
-				cstmt.registerOutParameter("data_", oracle.jdbc.OracleTypes.ARRAY, "DBAX_HTBUF_ARR");
+	/**
+	 * @param dbProcedure
+	 *            the dbProcedure to set
+	 */
+	public void setDbProcedure(String dbProcedure) {
+		this.dbProcedure = dbProcedure;
+	}
 
-				// Execute
-				log.debug("Execute - call");
-				cstmt.execute();
-				log.debug("Execute - called");
+	public void setDbProcedure() {
 
-				log.debug("Buffer - Get");
-				// Get data_ from
-				Array arrOut = (Array) cstmt.getArray("data_");
-				String[] buffer = (String[]) arrOut.getArray();
-				log.debug("Buffer - Getted");
+		// http://hostname[:port]/dbax/dadName/[[!][schema.][package.]proc_name]
+		// requestPath[0] = dbax
+		// requestPath[1] = dadName
+		// requestPath[2] = dbProcedure
 
-				log.debug("Response Headers - set");
-				// Response HTTP Headers
-				buffer = WebUtils.setResponseHeaders(buffer, response);
-				log.debug("Response Headers - setted");
+		if (requestPath.length >= 3) {
+			this.dbProcedure = requestPath[2];
 
-				// Print content body
-				for (int j = 0; j < buffer.length; j++) {
-					out.print(buffer[j]);
-				}
-
-				// Get out params
-				// Aqui deberia revisar si hay que descargarse el fichero
-				// out.println("rc_: " + cstmt.getInt("rc_"));
-
-				conn.close();
-			} else {
-				log.debug("No URL selected, 404");
-				// TODO WebGUI?
-				response.setStatus(404);
+			// If flexible parameter
+			if (this.dbProcedure.substring(0, 1).equals("!")) {
+				this.dbProcedure = this.dbProcedure.substring(1);
+				setFlexibleParameters(true);
+			} else if (ApexDynamicParameters.apexProcedures.containsKey(this.dbProcedure)) {
+				// Set apex call
+				this.apexCall = true;
+				log.debug("ApexCall is " + apexCall);
 			}
 
-			log.debug("End");
-
-		} catch (SQLException e) {
-			log.error("SQLException", e);
-			response.setStatus(500);
-			if (errorStyle == "DebugStyle")
-				out.print(e.getMessage());
-		} catch (NoSuchElementException e) {
-			log.warn("NoSuchElementException", e);
-			response.setStatus(404);
-			if (errorStyle == "DebugStyle")
-				out.print(e.getMessage());
-		} catch (Exception e) {
-			log.error("Exception", e);
-			response.setStatus(500);
-			if (errorStyle == "DebugStyle")
-				out.print(e.getMessage());
 		}
 
+	}
+
+	/**
+	 * @return the inputParams
+	 */
+	public LinkedHashMap<String, String> getInputParams() {
+		return inputParams;
+	}
+
+	public void setInputParam(String key, String value) {
+		// Double single quotes
+		//this.inputParams.put(key, value.replaceAll("'", "''"));
+		this.inputParams.put(key, value);
+	}
+
+	/**
+	 * @param request
+	 * @param inputParams
+	 *            the inputParams to set
+	 */
+	public void setInputParams(HttpServletRequest request) {
+
+		Enumeration<String> paramNames = request.getParameterNames();
+		while (paramNames.hasMoreElements()) {
+			String key = (String) paramNames.nextElement();
+			String value = request.getParameter((key));
+
+			log.debug("key:" + key + " ,value:" + value);
+
+			String apexInputParam = null;
+			try {
+				apexInputParam = ((HashMap<String, String>) ApexDynamicParameters.apexProcedures.get(this.dbProcedure)).get(key)
+						.toString();
+
+				log.debug("apexInputParam: " + apexInputParam);
+			} catch (NullPointerException e) {
+			}
+
+			if (this.apexCall && apexInputParam != null) {
+				//
+				String[] values = request.getParameterValues(key);
+
+				for (int i = 0; i <= values.length - 1; i++) {
+					log.debug("Parametro " + key + "=>" + values[i]);
+					// set apexDynamicParam
+					this.apexInputParams.put(key + "(" + (i + 1) + ")", values[i].replaceAll("'", "''"));
+				}
+
+				setInputParam(key, key);
+
+			} else {
+				setInputParam(key, value);
+			}
+
+		}
+
+		// Request Body passing as body prameter
+		if (this.flexibleParameters){
+			try {
+				setInputParam("body",WebUtils.getBody(request));
+			} catch (IOException e) {
+				log.error(e);
+			}
+		}
+		/*if (this.flexibleParameters)
+		{	
+			StringBuffer sb = new StringBuffer();
+			String line = null;
+			try {
+				BufferedReader reader = request.getReader();
+				while ((line = reader.readLine()) != null) {
+					sb.append(line);
+				}
+				if (sb != null) {
+					setInputParam("body", sb.toString());
+				}
+			} catch (IllegalStateException e) {
+				// The request has already been read as binary by uploading a file.
+			} catch (Exception e) {
+				log.error(e);
+			}
+		}
+		*/
+	}
+
+	@SuppressWarnings("rawtypes")
+	public String getDbProcedureCall() {
+		String dbProcedureInputs = "";
+		int k = 1;
+		Iterator<?> it = this.inputParams.entrySet().iterator();
+
+		if (this.flexibleParameters) {
+			/*while (it.hasNext()) {
+				Map.Entry pair = (Map.Entry) it.next();
+				dbProcedureInputs += "l_param_names(" + k + ") := '" + pair.getKey() + "';";
+
+				if (pair.getValue() == null || pair.getValue().equals("null"))
+					dbProcedureInputs = dbProcedureInputs.concat("l_param_values(" + k + ") := '';");
+				else
+					dbProcedureInputs = dbProcedureInputs
+							.concat("l_param_values(" + k + ") := '" + pair.getValue() + "';");
+
+				k++;
+			}*/
+
+			dbProcedureInputs += this.dbProcedure + " (?, ?);";
+
+		} else {
+			// Naming parameters
+
+			// ApexCall
+			if (this.apexCall) {
+				Iterator<?> apexParamIt = this.apexInputParams.entrySet().iterator();
+				while (apexParamIt.hasNext()) {
+					Map.Entry pair = (Map.Entry) apexParamIt.next();
+
+					if (pair.getValue() == null || pair.getValue().equals("null"))
+						dbProcedureInputs = dbProcedureInputs.concat(pair.getKey() + " := '';");
+					else
+						dbProcedureInputs = dbProcedureInputs.concat(pair.getKey() + ":= '" + pair.getValue() + "';");
+
+				}
+			}
+
+			// dbProcedure ( inputParam(key) => inputParam(value) [,
+			// inputParam(key) => inputParam(value)]);
+			dbProcedureInputs = dbProcedureInputs.concat(this.dbProcedure + "(");
+
+//			while (it.hasNext()) {
+//				Map.Entry pair = (Map.Entry) it.next();
+//				String key = (String) pair.getKey();
+//				String value = (String) pair.getValue();
+//
+//				if (key != "body") {
+//					if (k > 1) {
+//						dbProcedureInputs = dbProcedureInputs.concat(",");
+//					}
+//					// si el parametro es uno de los especiales de apex va sin
+//					// comillas
+//					if (this.apexCall && ((HashMap<String, String>) ApexDynamicParameters.apexProcedures.get(this.dbProcedure))
+//							.containsKey(key))
+//						dbProcedureInputs = dbProcedureInputs.concat(key + " => " + value);
+//					else
+//						dbProcedureInputs = dbProcedureInputs.concat(key + " => '" + value + "'");
+//					k++;
+//				}
+//			}
+
+			while (it.hasNext()) {
+				Map.Entry pair = (Map.Entry) it.next();
+				String paramName = (String) pair.getKey();				
+
+				if (paramName != "body") {
+					if (k > 1) {
+						dbProcedureInputs = dbProcedureInputs.concat(",");
+					}
+
+					dbProcedureInputs = dbProcedureInputs.concat(paramName + " => ? ");
+					k++;
+				} else {}
+			}
+			
+			dbProcedureInputs = dbProcedureInputs.concat(");");
+		}
+
+		return dbProcedureInputs;
+	}
+
+	/**
+	 * @return the multipart
+	 */
+	public Boolean getMultipart() {
+		return multipart;
+	}
+
+	/**
+	 * @param multipart
+	 *            the multipart to set
+	 */
+	public void setMultipart(Boolean multipart) {
+		this.multipart = multipart;
+	}
+
+	/**
+	 * @return the flexibleParameters
+	 */
+	public Boolean isFlexibleParameters() {
+		return flexibleParameters;
+	}
+
+	/**
+	 * @param flexibleParameters
+	 *            the flexibleParameters to set
+	 */
+	public void setFlexibleParameters(Boolean flexibleParameters) {
+		this.flexibleParameters = flexibleParameters;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		return "Gateway [conn=" + conn + ", dadName=" + dadName + ", dadC=" + dadC + ", requestPath="
+				+ Arrays.toString(requestPath) + ", cgiEnv=" + cgiEnv + ", dbProcedure=" + dbProcedure
+				+ ", inputParams=" + inputParams + ", multipart=" + multipart + ", flexibleParameters="
+				+ flexibleParameters + "]";
+	}
+
+	public String getApexParamDeclaration() {
+		String apexParamDeclaration = "\n";
+		if (this.apexCall) {
+
+			HashMap<String, String> apexParamters = (HashMap<String, String>) ApexDynamicParameters.apexProcedures
+					.get(this.dbProcedure);
+
+			for (Map.Entry<String, String> apexParamter : apexParamters.entrySet()) {
+				String parameterName = apexParamter.getKey();
+				String parameterType = apexParamter.getValue();
+				apexParamDeclaration = apexParamDeclaration.concat(parameterName + "	" + parameterType + ";");
+			}
+
+		}
+		return apexParamDeclaration;
+	}
+
+	/**
+	 * @return the bindVars
+	 */
+	public HashMap<String, String> getBindVars() {
+		return bindVars;
+	}
+
+	/**
+	 * @param bindVars the bindVars to set
+	 */
+	public void setBindVars(HashMap<String, String> bindVars) {
+		this.bindVars = bindVars;
+	}
+
+	/**
+	 * @return the headers
+	 */
+	public HashMap<String, String> getHeaders() {
+		return headers;
+	}
+
+	/**
+	 * @param headers the headers to set
+	 */
+	public void setHeaders(HashMap<String, String> headers) {
+		this.headers = headers;
 	}
 
 }

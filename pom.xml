@@ -60,12 +60,21 @@
 			<systemPath>/Users/osalvador/JEE/DriversJDBC/ojdbc6/ojdbc6.jar</systemPath>
 		</dependency>
 
+		<dependency>
+			<groupId>com.oracle.ucp</groupId>
+			<artifactId>ucp</artifactId>
+			<version>11.2.0.4</version>
+			<scope>system</scope>
+			<!-- <systemPath>${project.basedir}/lib/ojdbc6/ojdbc6.jar</systemPath> -->
+			<systemPath>/Users/osalvador/JEE/DriversJDBC/ojdbc6/ucp.jar</systemPath>
+		</dependency>
+
 
 		<dependency>
 			<groupId>org.apache.tomcat</groupId>
 			<artifactId>tomcat-jdbc</artifactId>
 			<version>7.0.35</version>
-			<scope>provided</scope>
+	<scope>provided</scope>
 		</dependency>
 
 

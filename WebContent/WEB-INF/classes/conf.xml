@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<ErrorStyle>DebugStyle</ErrorStyle>
+	<dad>
+		<name>db</name>
+		<properties>
+			<!-- Is neccesary? solo los procedimientos que respetan el interfaz de 
+				dbax se van a poder invar... <RequestValidationFunction></RequestValidationFunction> -->
+			<DefaultPage>hello</DefaultPage>
+			<DocumentTableName>wdx_documents</DocumentTableName>
+			<DocumentMaxUploadSize>0</DocumentMaxUploadSize>
+			<pool>
+				<DriverClassName>oracle.jdbc.OracleDriver</DriverClassName>
+				<Url>jdbc:oracle:thin:@ddhost:1521:SID</Url>
+				<Username>user</Username>
+				<Password>pwd</Password>
+				<JmxEnabled>true</JmxEnabled>
+				<TestWhileIdle>false</TestWhileIdle>
+				<TestOnBorrow>true</TestOnBorrow>
+				<ValidationQuery>SELECT 1 from dual</ValidationQuery>
+				<TestOnReturn>false</TestOnReturn>
+				<ValidationInterval>30000</ValidationInterval>
+				<TimeBetweenEvictionRunsMillis>30000</TimeBetweenEvictionRunsMillis>
+				<MaxActive>100</MaxActive>
+				<InitialSize>10</InitialSize>
+				<MinIdle>10</MinIdle>
+				<MaxWait>10000</MaxWait>
+				<RemoveAbandonedTimeout>0</RemoveAbandonedTimeout>
+				<MinEvictableIdleTimeMillis>30000</MinEvictableIdleTimeMillis>
+				<LogAbandoned>true</LogAbandoned>
+				<RemoveAbandoned>true</RemoveAbandoned>
+			</pool>
+		</properties>
+	</dad>
+
+<!--
+	<dad>
+		<name>db2</name>
+		<properties>
+			<DefaultPage>hello</DefaultPage>
+			<DocumentTableName>wdx_documents</DocumentTableName>
+			<DocumentMaxUploadSize>0</DocumentMaxUploadSize>
+			<pool>
+				<DriverClassName>oracle.jdbc.OracleDriver</DriverClassName>
+				<Url>jdbc:oracle:thin:@ddhost:1521:SID</Url>
+				<Username>user</Username>
+				<Password>pwd</Password>
+				<JmxEnabled>true</JmxEnabled>
+				<TestWhileIdle>false</TestWhileIdle>
+				<TestOnBorrow>true</TestOnBorrow>
+				<ValidationQuery>SELECT 1 from dual</ValidationQuery>
+				<TestOnReturn>true</TestOnReturn>
+				<ValidationInterval>30000</ValidationInterval>
+				<TimeBetweenEvictionRunsMillis>30000</TimeBetweenEvictionRunsMillis>
+				<MaxActive>100</MaxActive>
+				<InitialSize>10</InitialSize>
+				<MinIdle>10</MinIdle>
+				<MaxWait>10000</MaxWait>
+				<RemoveAbandonedTimeout>0</RemoveAbandonedTimeout>
+				<MinEvictableIdleTimeMillis>30000</MinEvictableIdleTimeMillis>
+				<LogAbandoned>true</LogAbandoned>
+				<RemoveAbandoned>true</RemoveAbandoned>
+			</pool>
+		</properties>
+	</dad>-->
+
+</configuration>
