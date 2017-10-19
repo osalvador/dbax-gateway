@@ -14,8 +14,8 @@ public class DbaxConfiguration {
 
 	final static Logger log = Logger.getLogger(DbaxConfiguration.class);
 	
-	private HashMap<String, DadConfiguration> dads;
-
+	private HashMap<String, DadConfiguration> dads;	
+	
 	
 	public DbaxConfiguration(HashMap<String, DadConfiguration> theConfig) {
 		this.dads = theConfig;
@@ -57,7 +57,7 @@ public class DbaxConfiguration {
 		} catch (ConfigurationException e) {
 			throw new ConfigurationException("Unable to get conf.xml file ");
 		}
-
+		
 		List<HierarchicalConfiguration<ImmutableNode>> configDads = config.configurationsAt("dad");
 
 		for (HierarchicalConfiguration configDad : configDads) {
@@ -70,32 +70,21 @@ public class DbaxConfiguration {
 			dad.setDefaultPage(configDad.getString("properties.DefaultPage"));
 			dad.setDocumentTableName(configDad.getString("properties.DocumentTableName"));
 			dad.setDocumentMaxUploadSize(configDad.getString("properties.DocumentMaxUploadSize"));
+			dad.setRequestValidationFunction(configDad.getString("properties.RequestValidationFunction"));
 
-			// Pool properties
-			dad.setDriverClassName(configDad.getString("properties.pool.DriverClassName"));
+			// Pool properties			
 			dad.setUrl(configDad.getString("properties.pool.Url"));
-			dad.setUsername(configDad.getString("properties.pool.Username"));
+			dad.setUser(configDad.getString("properties.pool.User"));
 			dad.setPassword(configDad.getString("properties.pool.Password"));
 
-			dad.setJmxEnabled(configDad.getBoolean("properties.pool.JmxEnabled"));
-			dad.setTestWhileIdle(configDad.getBoolean("properties.pool.TestWhileIdle"));
-			dad.setTestOnBorrow(configDad.getBoolean("properties.pool.TestOnBorrow"));
-			dad.setValidationQuery(configDad.getString("properties.pool.ValidationQuery"));
-			dad.setTestOnReturn(configDad.getBoolean("properties.pool.TestOnReturn"));
-			dad.setValidationInterval(configDad.getInt("properties.pool.ValidationInterval"));
-			dad.setTimeBetweenEvictionRunsMillis(configDad.getInt("properties.pool.TimeBetweenEvictionRunsMillis"));
-
-			dad.setMaxActive(configDad.getInt("properties.pool.MaxActive"));
-			dad.setInitialSize(configDad.getInt("properties.pool.InitialSize"));
-			dad.setMinIdle(configDad.getInt("properties.pool.MinIdle"));
-
-			dad.setMaxWait(configDad.getInt("properties.pool.MaxWait"));
-			dad.setRemoveAbandonedTimeout(configDad.getInt("properties.pool.RemoveAbandonedTimeout"));
-			dad.setMinEvictableIdleTimeMillis(configDad.getInt("properties.pool.MinEvictableIdleTimeMillis"));
-
-			dad.setLogAbandoned(configDad.getBoolean("properties.pool.LogAbandoned"));
-			dad.setRemoveAbandoned(configDad.getBoolean("properties.pool.RemoveAbandoned"));
-
+			dad.setInitialPoolSize(configDad.getInt("properties.pool.InitialPoolSize"));
+			dad.setMinPoolSize(configDad.getInt("properties.pool.MinPoolSize"));
+			dad.setMaxPoolSize(configDad.getInt("properties.pool.MaxPoolSize"));
+			dad.setMaxConnectionReuseCount(configDad.getInt("properties.pool.MaxConnectionReuseCount"));
+			dad.setMaxStatements(configDad.getInt("properties.pool.MaxStatements"));
+			dad.setInactiveConnectionTimeout(configDad.getInt("properties.pool.InactiveConnectionTimeout"));
+			dad.setAbandonedConnectionTimeout(configDad.getInt("properties.pool.AbandonedConnectionTimeout"));
+		
 			dads.put(dad.getName().toUpperCase(), dad);
 
 		}
@@ -109,5 +98,27 @@ public class DbaxConfiguration {
 		return "DbaxConfiguration [dads=" + dads + "]";
 	}
 
+	/**
+	 * @return the errorStyle
+	 * @throws ConfigurationException 
+	 */
+	public static String getErrorStyle() throws ConfigurationException {
+		XMLConfiguration config;
+		// access configuration properties
+		try {
+			Configurations configs = new Configurations();
+			config = configs.xml("conf.xml");
+
+		} catch (ConfigurationException e) {
+			throw new ConfigurationException("Unable to get conf.xml file ");
+		}
+
+		return config.getString("ErrorStyle");
+		
+	}
+
+
+
+	
 
 }
