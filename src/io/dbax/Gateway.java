@@ -1,6 +1,5 @@
 package io.dbax;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -25,7 +24,6 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.log4j.Logger;
 
-import io.dbax.conf.ApexDynamicParameters;
 import io.dbax.conf.DadConfiguration;
 import io.dbax.conf.DbaxConfiguration;
 import io.dbax.db.DBConnection;
@@ -34,11 +32,6 @@ public class Gateway {
 
 	final static Logger log = Logger.getLogger(Gateway.class);
 
-	// Oracle Apex procedures for especial Parameter mapping	
-	HashMap<String, String> apexInputParams = new HashMap<String, String>();
-	Boolean apexCall = false;
-	
-	//
 	Connection conn;
 	String dadName;
 	DadConfiguration dadC;
@@ -48,6 +41,7 @@ public class Gateway {
 	LinkedHashMap<String, String> inputParams = new LinkedHashMap<String, String>();
 	Boolean multipart = false;
 	Boolean flexibleParameters = false;
+	String requestValidationFunction;
 	HashMap<String, String> bindVars = new HashMap<String, String>();
 	HashMap<String, String> headers = new HashMap<String, String>();
 
@@ -57,14 +51,19 @@ public class Gateway {
 
 		this.requestPath = request.getServletPath().split("/");
 
-		if (requestPath.length >= 1) {
+		if (requestPath.length >= 1) {			
 			this.dadName = requestPath[1];
+			if (log.isInfoEnabled())
+				log.info("The DAD is: " + this.dadName);
+			
 			this.dadC = dc.getDad(dadName);
 			this.conn = dbCon.getDataSource(dadName).getConnection();
-			this.cgiEnv = WebUtils.getOracleCGIEnv(WebUtils.getHeadersInfo(request, servletContext, this.dadName), this.bindVars);
+			this.cgiEnv = WebUtils.getOracleCGIEnv(WebUtils.getHeadersInfo(request, servletContext, this.dadName),
+					this.bindVars);
 			this.multipart = ServletFileUpload.isMultipartContent(request);
 			this.headers = WebUtils.getHeadersInfo(request, servletContext, this.dadName);
-			
+			this.requestValidationFunction = dc.getDad(dadName).getRequestValidationFunction();
+
 			uploadFiles(request);
 			setDbProcedure();
 			setInputParams(request);
@@ -79,6 +78,9 @@ public class Gateway {
 		// Only if the request is multipart
 		if (this.multipart) {
 			try {
+				if (log.isInfoEnabled())
+					log.info("The user is uploading a File");
+				
 				// Create a factory for disk-based file items
 				DiskFileItemFactory factory = new DiskFileItemFactory();
 
@@ -100,35 +102,30 @@ public class Gateway {
 				Iterator<FileItem> iter = items.iterator();
 				while (iter.hasNext()) {
 					FileItem item = iter.next();
+					
+					if (log.isDebugEnabled()){
+						log.debug("The upload item object:" + item);
+					}
+					
 					if (item.isFormField()) {
 						String key = item.getFieldName();
 						String value = item.getString();
-						// Los campos del formulario se pasan como parametros de
-						// input
 						setInputParam(key, value);
 					} else {
-
-						Random rand = new Random();
+						
 
 						String fieldName = item.getFieldName();
+						//Setting new name to the file to avoid duplicate name files.
+						Random rand = new Random();
 						String fileName = (rand.nextInt((999999999 - 1) + 1) + 1) + "/" + item.getName();
-						String contentType = item.getContentType();
-						boolean isInMemory = item.isInMemory();
+						String contentType = item.getContentType();						
 						long sizeInBytes = item.getSize();
 						InputStream uploadedStream = item.getInputStream();
 
-						log.trace("fieldName:" + fieldName);
-						log.trace("fileName:" + fileName);
 						// El nombre del fichero se pasa como paramertro del
-						// input
-						setInputParam(/* key */ fieldName, /* value */ fileName);
+						setInputParam(fieldName, fileName);
 
-						log.trace("contentType:" + contentType);
-						log.trace("isInMemory:" + isInMemory);
-						log.trace("sizeInBytes:" + sizeInBytes);
-						log.trace("uploadedStream:" + uploadedStream);
-
-						// Insert the upload inputStream to wdx_table
+						// Insert the upload inputStream to documentTable							
 						String sqlInsert = "insert into " + dadC.getDocumentTableName()
 								+ " ( name , mime_type, doc_size, blob_content, last_updated )"
 								+ " values (?, ?, ?, ?, sysdate)";
@@ -142,22 +139,25 @@ public class Gateway {
 						// statement.setString(6, "BLOB"); /*content_type*/
 						statement.setBlob(4, uploadedStream);
 
+						if(log.isInfoEnabled())
+							log.info("Inserting the file: "+fileName+" ,into document table: " +dadC.getDocumentTableName());
+						
 						int row = statement.executeUpdate();
-						if (row > 0) {
-							log.debug("File uploaded and saved into database");
+						
+						if (log.isDebugEnabled() && row > 0) {
+							log.debug("The file is saved into database: fieldName=" + fieldName + ", fileName=" + fileName);
 						}
 
 						uploadedStream.close();
 					}
 				}
 
-			} catch (FileUploadException e) {
-				e.printStackTrace();
+			} catch (FileUploadException e) {				
+				log.error(e.getMessage(), e);
 			} catch (SQLException e) {
-				e.printStackTrace();
+				log.error(e.getMessage(), e);
 			} catch (IOException e) {
-				// Auto-generated catch block
-				e.printStackTrace();
+				log.error(e.getMessage(), e);
 			}
 		}
 	}
@@ -266,10 +266,6 @@ public class Gateway {
 			if (this.dbProcedure.substring(0, 1).equals("!")) {
 				this.dbProcedure = this.dbProcedure.substring(1);
 				setFlexibleParameters(true);
-			} else if (ApexDynamicParameters.apexProcedures.containsKey(this.dbProcedure)) {
-				// Set apex call
-				this.apexCall = true;
-				log.debug("ApexCall is " + apexCall);
 			}
 
 		}
@@ -284,8 +280,6 @@ public class Gateway {
 	}
 
 	public void setInputParam(String key, String value) {
-		// Double single quotes
-		//this.inputParams.put(key, value.replaceAll("'", "''"));
 		this.inputParams.put(key, value);
 	}
 
@@ -300,63 +294,18 @@ public class Gateway {
 		while (paramNames.hasMoreElements()) {
 			String key = (String) paramNames.nextElement();
 			String value = request.getParameter((key));
-
-			log.debug("key:" + key + " ,value:" + value);
-
-			String apexInputParam = null;
-			try {
-				apexInputParam = ((HashMap<String, String>) ApexDynamicParameters.apexProcedures.get(this.dbProcedure)).get(key)
-						.toString();
-
-				log.debug("apexInputParam: " + apexInputParam);
-			} catch (NullPointerException e) {
-			}
-
-			if (this.apexCall && apexInputParam != null) {
-				//
-				String[] values = request.getParameterValues(key);
-
-				for (int i = 0; i <= values.length - 1; i++) {
-					log.debug("Parametro " + key + "=>" + values[i]);
-					// set apexDynamicParam
-					this.apexInputParams.put(key + "(" + (i + 1) + ")", values[i].replaceAll("'", "''"));
-				}
-
-				setInputParam(key, key);
-
-			} else {
-				setInputParam(key, value);
-			}
-
+			setInputParam(key, value);
 		}
 
 		// Request Body passing as body prameter
-		if (this.flexibleParameters){
+		if (this.flexibleParameters) {
 			try {
-				setInputParam("body",WebUtils.getBody(request));
+				setInputParam("body", WebUtils.getBody(request));
 			} catch (IOException e) {
 				log.error(e);
 			}
 		}
-		/*if (this.flexibleParameters)
-		{	
-			StringBuffer sb = new StringBuffer();
-			String line = null;
-			try {
-				BufferedReader reader = request.getReader();
-				while ((line = reader.readLine()) != null) {
-					sb.append(line);
-				}
-				if (sb != null) {
-					setInputParam("body", sb.toString());
-				}
-			} catch (IllegalStateException e) {
-				// The request has already been read as binary by uploading a file.
-			} catch (Exception e) {
-				log.error(e);
-			}
-		}
-		*/
+
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -366,76 +315,24 @@ public class Gateway {
 		Iterator<?> it = this.inputParams.entrySet().iterator();
 
 		if (this.flexibleParameters) {
-			/*while (it.hasNext()) {
-				Map.Entry pair = (Map.Entry) it.next();
-				dbProcedureInputs += "l_param_names(" + k + ") := '" + pair.getKey() + "';";
-
-				if (pair.getValue() == null || pair.getValue().equals("null"))
-					dbProcedureInputs = dbProcedureInputs.concat("l_param_values(" + k + ") := '';");
-				else
-					dbProcedureInputs = dbProcedureInputs
-							.concat("l_param_values(" + k + ") := '" + pair.getValue() + "';");
-
-				k++;
-			}*/
-
 			dbProcedureInputs += this.dbProcedure + " (?, ?);";
-
 		} else {
 			// Naming parameters
-
-			// ApexCall
-			if (this.apexCall) {
-				Iterator<?> apexParamIt = this.apexInputParams.entrySet().iterator();
-				while (apexParamIt.hasNext()) {
-					Map.Entry pair = (Map.Entry) apexParamIt.next();
-
-					if (pair.getValue() == null || pair.getValue().equals("null"))
-						dbProcedureInputs = dbProcedureInputs.concat(pair.getKey() + " := '';");
-					else
-						dbProcedureInputs = dbProcedureInputs.concat(pair.getKey() + ":= '" + pair.getValue() + "';");
-
-				}
-			}
-
-			// dbProcedure ( inputParam(key) => inputParam(value) [,
-			// inputParam(key) => inputParam(value)]);
 			dbProcedureInputs = dbProcedureInputs.concat(this.dbProcedure + "(");
-
-//			while (it.hasNext()) {
-//				Map.Entry pair = (Map.Entry) it.next();
-//				String key = (String) pair.getKey();
-//				String value = (String) pair.getValue();
-//
-//				if (key != "body") {
-//					if (k > 1) {
-//						dbProcedureInputs = dbProcedureInputs.concat(",");
-//					}
-//					// si el parametro es uno de los especiales de apex va sin
-//					// comillas
-//					if (this.apexCall && ((HashMap<String, String>) ApexDynamicParameters.apexProcedures.get(this.dbProcedure))
-//							.containsKey(key))
-//						dbProcedureInputs = dbProcedureInputs.concat(key + " => " + value);
-//					else
-//						dbProcedureInputs = dbProcedureInputs.concat(key + " => '" + value + "'");
-//					k++;
-//				}
-//			}
 
 			while (it.hasNext()) {
 				Map.Entry pair = (Map.Entry) it.next();
-				String paramName = (String) pair.getKey();				
+				String paramName = (String) pair.getKey();
 
 				if (paramName != "body") {
 					if (k > 1) {
 						dbProcedureInputs = dbProcedureInputs.concat(",");
 					}
-
 					dbProcedureInputs = dbProcedureInputs.concat(paramName + " => ? ");
 					k++;
-				} else {}
+				}
 			}
-			
+
 			dbProcedureInputs = dbProcedureInputs.concat(");");
 		}
 
@@ -472,35 +369,6 @@ public class Gateway {
 		this.flexibleParameters = flexibleParameters;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.lang.Object#toString()
-	 */
-	@Override
-	public String toString() {
-		return "Gateway [conn=" + conn + ", dadName=" + dadName + ", dadC=" + dadC + ", requestPath="
-				+ Arrays.toString(requestPath) + ", cgiEnv=" + cgiEnv + ", dbProcedure=" + dbProcedure
-				+ ", inputParams=" + inputParams + ", multipart=" + multipart + ", flexibleParameters="
-				+ flexibleParameters + "]";
-	}
-
-	public String getApexParamDeclaration() {
-		String apexParamDeclaration = "\n";
-		if (this.apexCall) {
-
-			HashMap<String, String> apexParamters = (HashMap<String, String>) ApexDynamicParameters.apexProcedures
-					.get(this.dbProcedure);
-
-			for (Map.Entry<String, String> apexParamter : apexParamters.entrySet()) {
-				String parameterName = apexParamter.getKey();
-				String parameterType = apexParamter.getValue();
-				apexParamDeclaration = apexParamDeclaration.concat(parameterName + "	" + parameterType + ";");
-			}
-
-		}
-		return apexParamDeclaration;
-	}
 
 	/**
 	 * @return the bindVars
@@ -510,7 +378,8 @@ public class Gateway {
 	}
 
 	/**
-	 * @param bindVars the bindVars to set
+	 * @param bindVars
+	 *            the bindVars to set
 	 */
 	public void setBindVars(HashMap<String, String> bindVars) {
 		this.bindVars = bindVars;
@@ -524,10 +393,37 @@ public class Gateway {
 	}
 
 	/**
-	 * @param headers the headers to set
+	 * @param headers
+	 *            the headers to set
 	 */
 	public void setHeaders(HashMap<String, String> headers) {
 		this.headers = headers;
 	}
+
+	/**
+	 * @return the requestValidationFunction
+	 */
+	public String getRequestValidationFunction() {
+		return requestValidationFunction;
+	}
+
+	@Override
+	public String toString() {
+		return "Gateway [conn=" + conn + ", dadName=" + dadName + ", dadC=" + dadC + ", requestPath="
+				+ Arrays.toString(requestPath) + ", dbProcedure=" + dbProcedure
+				+ ", inputParams=" + inputParams + ", multipart=" + multipart + ", flexibleParameters="
+				+ flexibleParameters + ", requestValidationFunction=" + requestValidationFunction 
+				+ ", headers=" + headers + "]";
+	}
+	
+	public String toStringTrace() {
+		return "Gateway [conn=" + conn + ", dadName=" + dadName + ", dadC=" + dadC + ", requestPath="
+				+ Arrays.toString(requestPath) + ", cgiEnv=" + cgiEnv + ", dbProcedure=" + dbProcedure
+				+ ", inputParams=" + inputParams + ", multipart=" + multipart + ", flexibleParameters="
+				+ flexibleParameters + ", requestValidationFunction=" + requestValidationFunction + ", bindVars="
+				+ bindVars + ", headers=" + headers + "]";
+	}
+	
+	
 
 }

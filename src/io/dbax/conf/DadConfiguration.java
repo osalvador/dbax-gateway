@@ -8,236 +8,253 @@ public class DadConfiguration {
 
 	private String name;
 
-	// Properties
-	//private String requestValidationFunction;
-	//private String nlsLanguage;
+	// Properties	
+	// private String nlsLanguage;
 	private String defaultPage;
 	private String documentTableName;
 	private String documentMaxUploadSize;
+	private String requestValidationFunction;
 	// Pool
-	private String driverClassName;
+
 	private String url;
-	private String username;
+	private String user;
 	private String password;
-	private boolean jmxEnabled;
-	private boolean testWhileIdle;
-	private boolean testOnBorrow;
-	private String validationQuery;
-	private boolean testOnReturn;
-	private int validationInterval;
-	private int timeBetweenEvictionRunsMillis;
-	private int maxActive;
-	private int initialSize;
-	private int minIdle;
-	private int maxWait;
-	private int removeAbandonedTimeout;
-	private int minEvictableIdleTimeMillis;
-	private boolean logAbandoned;
-	private boolean removeAbandoned;
 
-	
-	public DadConfiguration() {
-		super();
-	}
+	private int initialPoolSize;
+	private int minPoolSize;
+	private int maxPoolSize;
 
+	private int maxConnectionReuseCount;
+	private int maxStatements;
+
+	private int inactiveConnectionTimeout;
+	private int abandonedConnectionTimeout;
+
+	/**
+	 * @return the name
+	 */
 	public String getName() {
 		return name;
 	}
 
+	/**
+	 * @param name
+	 *            the name to set
+	 */
 	public void setName(String name) {
 		this.name = name;
 	}
 
+	/**
+	 * @return the defaultPage
+	 */
 	public String getDefaultPage() {
 		return defaultPage;
 	}
 
+	/**
+	 * @param defaultPage
+	 *            the defaultPage to set
+	 */
 	public void setDefaultPage(String defaultPage) {
 		this.defaultPage = defaultPage;
 	}
 
+	/**
+	 * @return the documentTableName
+	 */
 	public String getDocumentTableName() {
 		return documentTableName;
 	}
 
+	/**
+	 * @param documentTableName
+	 *            the documentTableName to set
+	 */
 	public void setDocumentTableName(String documentTableName) {
 		this.documentTableName = documentTableName;
 	}
 
+	/**
+	 * @return the documentMaxUploadSize
+	 */
 	public String getDocumentMaxUploadSize() {
 		return documentMaxUploadSize;
 	}
 
+	/**
+	 * @param documentMaxUploadSize
+	 *            the documentMaxUploadSize to set
+	 */
 	public void setDocumentMaxUploadSize(String documentMaxUploadSize) {
 		this.documentMaxUploadSize = documentMaxUploadSize;
 	}
 
-	public String getDriverClassName() {
-		return driverClassName;
-	}
-
-	public void setDriverClassName(String driverClassName) {
-		this.driverClassName = driverClassName;
-	}
-
+	/**
+	 * @return the url
+	 */
 	public String getUrl() {
 		return url;
 	}
 
+	/**
+	 * @param url
+	 *            the url to set
+	 */
 	public void setUrl(String url) {
 		this.url = url;
 	}
 
-	public String getUsername() {
-		return username;
+	/**
+	 * @return the user
+	 */
+	public String getUser() {
+		return user;
 	}
 
-	public void setUsername(String username) {
-		this.username = username;
+	/**
+	 * @param user
+	 *            the user to set
+	 */
+	public void setUser(String user) {
+		this.user = user;
 	}
 
+	/**
+	 * @return the password
+	 */
 	public String getPassword() {
 		return password;
 	}
 
+	/**
+	 * @param password
+	 *            the password to set
+	 */
 	public void setPassword(String password) {
 		this.password = password;
 	}
 
-	public boolean isJmxEnabled() {
-		return jmxEnabled;
+	/**
+	 * @return the initialPoolSize
+	 */
+	public int getInitialPoolSize() {
+		return initialPoolSize;
 	}
 
-	public void setJmxEnabled(boolean jmxEnabled) {
-		this.jmxEnabled = jmxEnabled;
+	/**
+	 * @param initialPoolSize
+	 *            the initialPoolSize to set
+	 */
+	public void setInitialPoolSize(int initialPoolSize) {
+		this.initialPoolSize = initialPoolSize;
 	}
 
-	public boolean isTestWhileIdle() {
-		return testWhileIdle;
+	/**
+	 * @return the minPoolSize
+	 */
+	public int getMinPoolSize() {
+		return minPoolSize;
 	}
 
-	public void setTestWhileIdle(boolean testWhileIdle) {
-		this.testWhileIdle = testWhileIdle;
+	/**
+	 * @param minPoolSize
+	 *            the minPoolSize to set
+	 */
+	public void setMinPoolSize(int minPoolSize) {
+		this.minPoolSize = minPoolSize;
 	}
 
-	public boolean isTestOnBorrow() {
-		return testOnBorrow;
+	/**
+	 * @return the maxPoolSize
+	 */
+	public int getMaxPoolSize() {
+		return maxPoolSize;
 	}
 
-	public void setTestOnBorrow(boolean testOnBorrow) {
-		this.testOnBorrow = testOnBorrow;
+	/**
+	 * @param maxPoolSize
+	 *            the maxPoolSize to set
+	 */
+	public void setMaxPoolSize(int maxPoolSize) {
+		this.maxPoolSize = maxPoolSize;
 	}
 
-	public String getValidationQuery() {
-		return validationQuery;
+	/**
+	 * @return the maxConnectionReuseCount
+	 */
+	public int getMaxConnectionReuseCount() {
+		return maxConnectionReuseCount;
 	}
 
-	public void setValidationQuery(String validationQuery) {
-		this.validationQuery = validationQuery;
+	/**
+	 * @param maxConnectionReuseCount
+	 *            the maxConnectionReuseCount to set
+	 */
+	public void setMaxConnectionReuseCount(int maxConnectionReuseCount) {
+		this.maxConnectionReuseCount = maxConnectionReuseCount;
 	}
 
-	public boolean isTestOnReturn() {
-		return testOnReturn;
+	/**
+	 * @return the maxStatements
+	 */
+	public int getMaxStatements() {
+		return maxStatements;
 	}
 
-	public void setTestOnReturn(boolean testOnReturn) {
-		this.testOnReturn = testOnReturn;
+	/**
+	 * @param maxStatements
+	 *            the maxStatements to set
+	 */
+	public void setMaxStatements(int maxStatements) {
+		this.maxStatements = maxStatements;
 	}
 
-	public int getValidationInterval() {
-		return validationInterval;
+	/**
+	 * @return the inactiveConnectionTimeout
+	 */
+	public int getInactiveConnectionTimeout() {
+		return inactiveConnectionTimeout;
 	}
 
-	public void setValidationInterval(int validationInterval) {
-		this.validationInterval = validationInterval;
+	/**
+	 * @param inactiveConnectionTimeout
+	 *            the inactiveConnectionTimeout to set
+	 */
+	public void setInactiveConnectionTimeout(int inactiveConnectionTimeout) {
+		this.inactiveConnectionTimeout = inactiveConnectionTimeout;
 	}
 
-	public int getTimeBetweenEvictionRunsMillis() {
-		return timeBetweenEvictionRunsMillis;
+	/**
+	 * @return the abandonedConnectionTimeout
+	 */
+	public int getAbandonedConnectionTimeout() {
+		return abandonedConnectionTimeout;
 	}
 
-	public void setTimeBetweenEvictionRunsMillis(int timeBetweenEvictionRunsMillis) {
-		this.timeBetweenEvictionRunsMillis = timeBetweenEvictionRunsMillis;
+	/**
+	 * @param abandonedConnectionTimeout
+	 *            the abandonedConnectionTimeout to set
+	 */
+	public void setAbandonedConnectionTimeout(int abandonedConnectionTimeout) {
+		this.abandonedConnectionTimeout = abandonedConnectionTimeout;
 	}
 
-	public int getMaxActive() {
-		return maxActive;
+	/**
+	 * @return the requestValidationFunction
+	 */
+	public String getRequestValidationFunction() {
+		return requestValidationFunction;
 	}
 
-	public void setMaxActive(int maxActive) {
-		this.maxActive = maxActive;
-	}
-
-	public int getInitialSize() {
-		return initialSize;
-	}
-
-	public void setInitialSize(int initialSize) {
-		this.initialSize = initialSize;
-	}
-
-	public int getMinIdle() {
-		return minIdle;
-	}
-
-	public void setMinIdle(int minIdle) {
-		this.minIdle = minIdle;
-	}
-
-	public int getMaxWait() {
-		return maxWait;
-	}
-
-	public void setMaxWait(int maxWait) {
-		this.maxWait = maxWait;
-	}
-
-	public int getRemoveAbandonedTimeout() {
-		return removeAbandonedTimeout;
-	}
-
-	public void setRemoveAbandonedTimeout(int removeAbandonedTimeout) {
-		this.removeAbandonedTimeout = removeAbandonedTimeout;
-	}
-
-	public int getMinEvictableIdleTimeMillis() {
-		return minEvictableIdleTimeMillis;
-	}
-
-	public void setMinEvictableIdleTimeMillis(int minEvictableIdleTimeMillis) {
-		this.minEvictableIdleTimeMillis = minEvictableIdleTimeMillis;
-	}
-
-	public boolean isLogAbandoned() {
-		return logAbandoned;
-	}
-
-	public void setLogAbandoned(boolean logAbandoned) {
-		this.logAbandoned = logAbandoned;
-	}
-
-	public boolean isRemoveAbandoned() {
-		return removeAbandoned;
-	}
-
-	public void setRemoveAbandoned(boolean removeAbandoned) {
-		this.removeAbandoned = removeAbandoned;
-	}
-
-	@Override
-	public String toString() {
-		return "DadConfiguration [name=" + name + ", defaultPage=" + defaultPage + ", documentTableName="
-				+ documentTableName + ", documentMaxUploadSize=" + documentMaxUploadSize + ", driverClassName="
-				+ driverClassName + ", url=" + url + ", username=" + username + ", password=" + password
-				+ ", jmxEnabled=" + jmxEnabled + ", testWhileIdle=" + testWhileIdle + ", testOnBorrow=" + testOnBorrow
-				+ ", validationQuery=" + validationQuery + ", testOnReturn=" + testOnReturn + ", validationInterval="
-				+ validationInterval + ", timeBetweenEvictionRunsMillis=" + timeBetweenEvictionRunsMillis
-				+ ", maxActive=" + maxActive + ", initialSize=" + initialSize + ", minIdle=" + minIdle + ", maxWait="
-				+ maxWait + ", removeAbandonedTimeout=" + removeAbandonedTimeout + ", minEvictableIdleTimeMillis="
-				+ minEvictableIdleTimeMillis + ", logAbandoned=" + logAbandoned + ", removeAbandoned=" + removeAbandoned
-				+ "]";
+	/**
+	 * @param requestValidationFunction the requestValidationFunction to set
+	 */
+	public void setRequestValidationFunction(String requestValidationFunction) {
+		this.requestValidationFunction = requestValidationFunction;
 	}
 
 	
-	
+
+
 }

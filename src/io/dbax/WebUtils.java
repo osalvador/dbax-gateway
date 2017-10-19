@@ -67,47 +67,6 @@ public final class WebUtils {
 		return cgi_env;
 
 	}
-
-	/**
-	 * Establece los parametros de entrada al procedimiento almacenado. 
-	 * Si los parametros de entrada vienen al completo en el body de la peticion
-	 * se mapean como un parametro "data"
-	 * 
-	 * @param request
-	 * @return
-	 */
-	/*@SuppressWarnings("rawtypes")
-	public static String getOracleInputParams(HttpServletRequest request) {
-		String inputParams = "";
-		int k = 1;
-
-		Enumeration paramNames = request.getParameterNames();
-		while (paramNames.hasMoreElements()) {
-			String key = (String) paramNames.nextElement();
-			String value = request.getParameter((key));
-			inputParams += "l_param_names(" + k + ") := '" + key + "';";
-			inputParams += "l_param_values(" + k + ") := '" + value.replaceAll("'", "''")+ "';";
-			k++;
-		}
-
-		StringBuffer sb = new StringBuffer();
-		String line = null;
-		try {
-			BufferedReader reader = request.getReader();
-			while ((line = reader.readLine()) != null)
-				sb.append(line);
-		} catch (Exception e) {
-			// report an error 
-			  }
-			 
-		
-		if (sb != null){
-			inputParams += "l_param_names(" + k + ") := 'data';";
-			inputParams += "l_param_values(" + k + ") := '" + sb.toString().replaceAll("'", "''") + "';";
-		}
-		
-		return inputParams;
-	}*/
 	
 	
 	/**
@@ -176,16 +135,14 @@ public final class WebUtils {
 		map.put("HTTP_REFERER", request.getHeader("refer"));
 		map.put("HTTP_USER_AGENT", request.getHeader("user-agent"));
 		map.put("PATH_ALIAS", "");
-		map.put("PLSQL_GATEWAY", "WebDb");
-		//map.put("REMOTE_ADDR", "0:0:0:0:0:0:0:1");
-		
+		map.put("PLSQL_GATEWAY", "WebDb");		
 
 		map.put("REQUEST_CHARSET", "AL32UTF8");
 		map.put("REQUEST_IANA_CHARSET", "UTF-8");
 
 		map.put("SCRIPT_PREFIX", "");
 
-		map.put("SERVER_PROTOCOL", "HTTP/1.1");
+		map.put("SERVER_PROTOCOL", request.getProtocol());
 		map.put("WEB_AUTHENT_PREFIX", "");
 		map.put("HTTP_COOKIE", request.getHeader("cookie"));
 

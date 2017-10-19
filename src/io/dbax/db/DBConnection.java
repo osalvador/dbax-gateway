@@ -9,12 +9,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Properties;
-
 import org.apache.log4j.Logger;
-//import org.apache.tomcat.jdbc.pool.DataSource;
-//import org.apache.tomcat.jdbc.pool.PoolProperties;
-import oracle.jdbc.pool.OracleDataSource;
 import oracle.ucp.jdbc.PoolDataSourceFactory;
 import oracle.ucp.jdbc.PoolDataSource;
 
@@ -36,66 +31,28 @@ public class DBConnection {
 
 			Map.Entry pair = (Map.Entry) it.next();
 			DadConfiguration dadC = (DadConfiguration) pair.getValue();
-  		    
+
 			PoolDataSource ds = PoolDataSourceFactory.getPoolDataSource();
-			//OracleDataSource ds = new OracleDataSource();
+			// OracleDataSource ds = new OracleDataSource();
 
 			// dad contains all data about a single field
-			//ds.setDriverType(dadC.getDriverClassName());
-  		    ds.setConnectionFactoryClassName("oracle.jdbc.pool.OracleDataSource");
+			ds.setConnectionFactoryClassName("oracle.jdbc.pool.OracleDataSource");
 			ds.setURL(dadC.getUrl());
-			ds.setUser(dadC.getUsername());
+			ds.setUser(dadC.getUser());
 			ds.setPassword(dadC.getPassword());
-			
-			//Setting pool properties			
-			ds.setInitialPoolSize(0); // must be 0 
-			ds.setMinPoolSize(1);
-			ds.setMaxPoolSize(10);
-			/*
-			ds.setInitialPoolSize(dadC.getInitialSize());
-			ds.setMinPoolSize(dadC.getMinIdle());
-			ds.setMaxPoolSize(dadC.getMaxActive());*/
-			
-			ds.setMaxIdleTime(1800);
-			ds.setInactiveConnectionTimeout(20);
-			
+
+			// Setting pool properties
+			ds.setInitialPoolSize(dadC.getInitialPoolSize()); // should be 0 
+			ds.setMinPoolSize(dadC.getMinPoolSize());
+			ds.setMaxPoolSize(dadC.getMaxPoolSize());
+			ds.setMaxConnectionReuseCount(dadC.getMaxConnectionReuseCount());
+			ds.setMaxStatements(dadC.getMaxStatements());
+			ds.setInactiveConnectionTimeout(dadC.getInactiveConnectionTimeout());
+			ds.setAbandonedConnectionTimeout(dadC.getAbandonedConnectionTimeout());
 			
 			ds.setValidateConnectionOnBorrow(true);
-			ds.setSQLForValidateConnection(dadC.getValidationQuery());
-			
-			
-			//ds.setConnectionHarvestTriggerCount(5);
-			//ds.setConnectionHarvestMaxCount(2);
-			//max cache statements
-			ds.setMaxStatements(10);
-			
+			ds.setSQLForValidateConnection("SELECT 1 FROM DUAL");
 
-//			
-//			p.setJmxEnabled(dadC.isJmxEnabled());
-//			p.setTestWhileIdle(dadC.isTestWhileIdle());
-//			p.setTestOnBorrow(dadC.isTestOnBorrow());
-//			p.setValidationQuery(dadC.getValidationQuery());
-//			p.setTestOnReturn(dadC.isTestOnReturn());
-//			p.setValidationInterval(dadC.getValidationInterval());
-//			p.setTimeBetweenEvictionRunsMillis(dadC.getTimeBetweenEvictionRunsMillis());
-//
-//			p.setMaxActive(dadC.getMaxActive());
-//			p.setInitialSize(dadC.getInitialSize());
-//			p.setMinIdle(dadC.getMinIdle());
-//
-//			p.setMaxWait(dadC.getMaxWait());
-//			p.setRemoveAbandonedTimeout(dadC.getRemoveAbandonedTimeout());
-//			p.setMinEvictableIdleTimeMillis(dadC.getMinEvictableIdleTimeMillis());
-//
-//			p.setLogAbandoned(dadC.isLogAbandoned());
-//			p.setRemoveAbandoned(dadC.isRemoveAbandoned());
-//
-//			p.setJdbcInterceptors("org.apache.tomcat.jdbc.pool.interceptor.ConnectionState;"
-//					+ "org.apache.tomcat.jdbc.pool.interceptor.StatementFinalizer");
-//
-//			// save datasource to the HasMap			
-//			ds.setPoolProperties(p);
-			
 			this.dataSources.put(dadC.getName().toUpperCase(), ds);
 
 		}
